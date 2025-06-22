@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sudoku with Themes & Ads</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        /* --- Base Styles --- */
+        .sudoku-grid {
+            display: grid;
+            grid-template-columns: repeat(9, minmax(0, 1fr));
+            gap: 2px;
+            width: 100%;
+            max-width: 500px;
+            margin: auto;
+            border: 3px solid #1f2937;
+            border-radius: 8px;
+            background-color: #1f2937;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+        .sudoku-cell {
+            width: 100%;
+            padding-bottom: 100%; /* Maintain aspect ratio 1:1 */
+            position: relative;
+            background-color: #f9fafb;
+            transition: background-color 0.2s ease-in-out;
+            cursor: pointer;
+        }
+        .sudoku-cell input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            font-size: 1.5rem; /* Larger font for main number */
+            border: none;
+            background-color: transparent;
+            color: #1f2937;
+            outline: none;
+            -moz-appearance: textfield;
+            caret-color: transparent; /* Hide the cursor */
+            transition: color 0.3s ease;
+        }
+        .sudoku-cell input::-webkit-outer-spin-button,
+        .sudoku-cell input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .sudoku-cell.pre-filled input { font-weight: 600; color: #374151; pointer-events: none; }
+        .sudoku-cell.incorrect input { color: #ef4444; font-weight: 700; }
+        /* Highlighting styles */
+        .sudoku-cell.highlight-strong { background-color: #c7d2fe; }
+        .sudoku-cell.highlight { background-color: #e0e7ff; }
+        .sudoku-cell.selected { background-color: #a5b4fc; }
+        .sudoku-cell:nth-child(3n) { border-right: 2px solid #1f2937; }
+        .sudoku-cell:nth-child(9n) { border-right: none; }
+        .sudoku-row:nth-child(3n) .sudoku-cell { border-bottom: 2px solid #1f2937; }
+        .sudoku-row:nth-child(9) .sudoku-cell { border-bottom: none; }
+        
+        .control-button { transition: all 0.3s ease; }
+        .control-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .control-button.active { background-color: #3b82f6; color: white; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+        .control-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .message-box { transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out; }
+
+        /* Number pad styles */
+        .number-pad { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; max-width: 500px; margin: 20px auto 0; }
+        .number-pad button { padding: 0.75rem 0; font-size: 1.25rem; font-weight: 600; border-radius: 8px; background-color: #fff; color: #3b82f6; border: 1px solid #d1d5db; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; transition: all 0.2s ease; }
+        .number-pad button:hover { background-color: #eff6ff; }
+        .number-pad button.completed { background-color: #e5e7eb; color: #9ca3af; pointer-events: none; }
+
+        /* Note styles */
+        .notes-grid { position: absolute; top: 2px; left: 2px; right: 2px; bottom: 2px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); pointer-events: none; }
+        .note-digit { font-size: 0.7rem; font-style: italic; color: #6b7280; text-align: center; line-height: 1.3; transition: color 0.3s ease; }
+
+        /* Modal Styles */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+        .modal-overlay.visible { opacity: 1; pointer-events: auto; }
+        .modal-content { background-color: white; padding: 2rem; border-radius: 12px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); transition: background-color 0.3s ease, color 0.3s ease;}
+        #interstitial-ad-modal .modal-content { background-color: #111827; color: white;}
+        
+        /* Banner Ad Placeholder */
+        .ad-banner-placeholder { width: 100%; max-width: 500px; height: 60px; background-color: #e5e7eb; color: #4b5563; display: flex; align-items: center; justify-content: center; margin: 24px auto 0; border-radius: 8px; font-size: 0.875rem; border: 1px dashed #9ca3af; transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;}
+
+        /* --- Dark Theme --- */
+        body.theme-dark { background-color: #111827; color: #d1d5db; }
+        .theme-dark .main-title { color: #f9fafb; }
+        .theme-dark .main-subtitle { color: #6b7280; }
+        .theme-dark .sudoku-grid { background-color: #4b5563; border-color: #4b5563; }
+        .theme-dark .sudoku-cell { background-color: #1f2937; }
+        .theme-dark .sudoku-cell:nth-child(3n) { border-right-color: #4b5563; }
+        .theme-dark .sudoku-row:nth-child(3n) .sudoku-cell { border-bottom-color: #4b5563; }
+        .theme-dark .sudoku-cell input { color: #d1d5db; }
+        .theme-dark .sudoku-cell.pre-filled input { color: #f9fafb; }
+        .theme-dark .sudoku-cell.highlight { background-color: #374151; }
+        .theme-dark .sudoku-cell.highlight-strong { background-color: #4b5563; }
+        .theme-dark .sudoku-cell.selected { background-color: #535d72; }
+        .theme-dark .control-button { background-color: #374151; color: #d1d5db; border: 1px solid #4b5563 }
+        .theme-dark .control-button.active { background-color: #4f46e5; color: white; border-color: #4f46e5; }
+        .theme-dark .number-pad button { background-color: #374151; color: #a5b4fc; border-color: #4b5563; }
+        .theme-dark .number-pad button:hover { background-color: #4b5563; }
+        .theme-dark .number-pad button.completed { background-color: #1f2937; color: #6b7280; }
+        .theme-dark .note-digit { color: #9ca3af; }
+        .theme-dark .modal-content { background-color: #1f2937; color: #d1d5db; }
+        .theme-dark .modal-content h3 { color: #f9fafb; }
+        .theme-dark .ad-banner-placeholder { background-color: #1f2937; color: #6b7280; border-color: #4b5563; }
+
+        /* --- Gray Theme --- */
+        body.theme-gray { background-color: #e5e7eb; color: #374151; }
+        .theme-gray .main-title { color: #111827; }
+        .theme-gray .main-subtitle { color: #4b5563; }
+        .theme-gray .sudoku-grid { background-color: #9ca3af; border-color: #9ca3af; }
+        .theme-gray .sudoku-cell { background-color: #f9fafb; }
+        .theme-gray .sudoku-cell:nth-child(3n) { border-right-color: #9ca3af; }
+        .theme-gray .sudoku-row:nth-child(3n) .sudoku-cell { border-bottom-color: #9ca3af; }
+        .theme-gray .sudoku-cell.highlight { background-color: #d1d5db; }
+        .theme-gray .sudoku-cell.highlight-strong { background-color: #9ca3af; }
+        .theme-gray .sudoku-cell.selected { background-color: #6b7280; }
+        .theme-gray .sudoku-cell.selected input { color: #f9fafb; }
+        .theme-gray .control-button { background-color: #fff; color: #374151; border: 1px solid #d1d5db; }
+        .theme-gray .control-button.active { background-color: #4b5563; color: white; border-color: #4b5563; }
+        .theme-gray .number-pad button { background-color: #fff; color: #4b5563; }
+        .theme-gray .number-pad button.completed { background-color: #d1d5db; color: #9ca3af; }
+        .theme-gray .ad-banner-placeholder { background-color: #d1d5db; color: #4b5563; border-color: #9ca3af; }
+
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="w-full max-w-lg mx-auto p-4">
+        <header class="text-center mb-6">
+            <h1 class="main-title text-4xl font-bold text-gray-800">Sudoku</h1>
+            <p class="main-subtitle text-gray-500 mt-1">A classic logic puzzle game.</p>
+        </header>
+
+        <main>
+            <!-- Controls: Difficulty, Mode, Theme -->
+            <div class="flex justify-center items-center flex-wrap gap-2 sm:gap-4 mb-6">
+                <!-- Difficulty -->
+                <button data-level="easy" class="difficulty-btn control-button active bg-white text-gray-700 font-semibold py-2 px-3 rounded-lg shadow-md">Easy</button>
+                <button data-level="medium" class="difficulty-btn control-button bg-white text-gray-700 font-semibold py-2 px-3 rounded-lg shadow-md">Medium</button>
+                <button data-level="hard" class="difficulty-btn control-button bg-white text-gray-700 font-semibold py-2 px-3 rounded-lg shadow-md">Hard</button>
+                <!-- Modes -->
+                <div class="flex gap-2">
+                    <button id="note-mode-btn" class="control-button bg-white text-gray-700 font-semibold py-2 px-3 rounded-lg shadow-md">Note</button>
+                    <button id="erase-btn" class="control-button bg-white text-red-500 font-semibold p-2 rounded-lg shadow-md flex items-center justify-center">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>
+                    </button>
+                </div>
+                <!-- Themes -->
+                 <div id="theme-selector" class="flex gap-2 p-1 bg-gray-200 rounded-lg">
+                    <button data-theme="default" class="theme-btn p-1 rounded-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v2"/><path d="M12 21v2"/><path d="m4.22 4.22 1.42 1.42"/><path d="m18.36 18.36 1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="m4.22 19.78 1.42-1.42"/><path d="m18.36 5.64 1.42-1.42"/><circle cx="12" cy="12" r="5"/></svg>
+                    </button>
+                    <button data-theme="gray" class="theme-btn p-1 rounded-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect width="18" height="18" x="3" y="3" fill="#9ca3af" rx="2" /></svg>
+                    </button>
+                    <button data-theme="dark" class="theme-btn p-1 rounded-md">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sudoku Grid -->
+            <div id="sudoku-grid" class="sudoku-grid"></div>
+
+             <!-- Number Pad -->
+            <div id="number-pad" class="number-pad"></div>
+            
+            <!-- BANNER AD PLACEHOLDER -->
+            <div id="ad-banner" class="ad-banner-placeholder">Banner Ad (320x50)</div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4 mt-6">
+                 <button id="validate-btn" class="control-button w-full sm:w-auto bg-blue-500 text-white font-semibold py-3 px-8 rounded-lg shadow-md">Check Solution</button>
+                 <button id="new-game-btn" class="control-button w-full sm:w-auto bg-green-500 text-white font-semibold py-3 px-8 rounded-lg shadow-md">New Game</button>
+            </div>
+             <!-- Message Box -->
+            <div id="message-box" class="message-box fixed top-20 left-1/2 -translate-x-1/2 bg-green-500 text-white py-3 px-6 rounded-lg shadow-xl opacity-0 transform -translate-y-10 pointer-events-none">
+                <p id="message-text"></p>
+            </div>
+        </main>
+
+        <!-- Interstitial Ad Modal -->
+        <div id="interstitial-ad-modal" class="modal-overlay">
+            <div class="modal-content relative">
+                <p class="text-sm uppercase tracking-widest">Advertisement</p>
+                <div id="interstitial-ad-body" class="my-8 text-lg">Your next game will start after this message.</div>
+                <button id="close-interstitial-ad-btn" class="absolute top-2 right-2 text-gray-400 hover:text-white" style="display: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- DOM Elements ---
+            const gridElement = document.getElementById('sudoku-grid');
+            const difficultyButtons = document.querySelectorAll('.difficulty-btn');
+            const validateButton = document.getElementById('validate-btn');
+            const newGameButton = document.getElementById('new-game-btn');
+            const noteModeButton = document.getElementById('note-mode-btn');
+            const eraseButton = document.getElementById('erase-btn');
+            const themeButtons = document.querySelectorAll('.theme-btn');
+            const messageBox = document.getElementById('message-box');
+            const messageText = document.getElementById('message-text');
+            const numberPad = document.getElementById('number-pad');
+            const interstitialAdModal = document.getElementById('interstitial-ad-modal');
+            const closeInterstitialAdBtn = document.getElementById('close-interstitial-ad-btn');
+
+
+            // --- Game State ---
+            let currentBoard = []; let solution = []; let userNotes = []; 
+            let difficulty = 'easy'; let lastSelectedCell = null; let isNoteMode = false;
+
+            // --- Sudoku Generation Logic (Unchanged) ---
+            class SudokuGenerator {
+                constructor() { this.board = Array(9).fill(0).map(() => Array(9).fill(0)); }
+                generate(difficulty) { this.board = Array(9).fill(0).map(() => Array(9).fill(0)); this.fillBoard(this.board); const fullSolution = JSON.parse(JSON.stringify(this.board)); this.punchHoles(difficulty); return { puzzle: this.board, solution: fullSolution }; }
+                fillBoard(board) { for (let i = 0; i < 9; i++) { for (let j = 0; j < 9; j++) { if (board[i][j] === 0) { let numbers = this.shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]); for (let num of numbers) { if (this.isValid(board, i, j, num)) { board[i][j] = num; if (this.fillBoard(board)) return true; board[i][j] = 0; } } return false; } } } return true; }
+                punchHoles(difficulty) { let holes; if (difficulty === 'easy') holes = 40; else if (difficulty === 'medium') holes = 50; else if (difficulty === 'hard') holes = 60; else holes = 40; let attempts = 81 - holes; while (attempts > 0) { let row = Math.floor(Math.random() * 9); let col = Math.floor(Math.random() * 9); if (this.board[row][col] !== 0) { this.board[row][col] = 0; attempts--; } } }
+                isValid(board, row, col, num) { for (let x = 0; x < 9; x++) if (board[row][x] === num) return false; for (let x = 0; x < 9; x++) if (board[x][col] === num) return false; const startRow = row - row % 3, startCol = col - col % 3; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) if (board[i + startRow][j + startCol] === num) return false; return true; }
+                shuffle(array) { for (let i = array.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[array[i], array[j]] = [array[j], array[i]]; } return array; }
+            }
+            
+            // --- Theme Logic ---
+            function applyTheme(theme) {
+                document.body.classList.remove('theme-dark', 'theme-gray');
+                if (theme === 'dark') {
+                    document.body.classList.add('theme-dark');
+                } else if (theme === 'gray') {
+                    document.body.classList.add('theme-gray');
+                }
+                themeButtons.forEach(btn => {
+                    if (btn.dataset.theme === theme) {
+                        btn.classList.add('bg-white', 'text-blue-600');
+                    } else {
+                        btn.classList.remove('bg-white', 'text-blue-600');
+                    }
+                });
+            }
+
+            // --- Advertisement Logic ---
+            function showInterstitialAd() {
+                return new Promise(resolve => {
+                    interstitialAdModal.classList.add('visible'); closeInterstitialAdBtn.style.display = 'none';
+                    setTimeout(() => { closeInterstitialAdBtn.style.display = 'block'; }, 2500);
+                    closeInterstitialAdBtn.onclick = () => { interstitialAdModal.classList.remove('visible'); resolve(); };
+                });
+            }
+            
+            // --- UI and Game Logic Functions ---
+            function renderBoard(board) {
+                gridElement.innerHTML = '';
+                board.forEach((row, rowIndex) => { row.forEach((cellValue, colIndex) => { const cell = document.createElement('div'); cell.className = 'sudoku-cell'; cell.dataset.row = rowIndex; cell.dataset.col = colIndex; const input = document.createElement('input'); input.type = 'text'; input.readOnly = true; const notesGrid = document.createElement('div'); notesGrid.className = 'notes-grid'; if (cellValue !== 0) { input.value = cellValue; cell.classList.add('pre-filled'); } cell.addEventListener('click', () => selectCell(cell)); cell.appendChild(notesGrid); cell.appendChild(input); gridElement.appendChild(cell); }); });
+                updateNumberPad();
+            }
+            function renderNumberPad() {
+                numberPad.innerHTML = '';
+                for (let i = 1; i <= 9; i++) { const button = document.createElement('button'); button.textContent = i; button.dataset.number = i; button.addEventListener('click', () => handleNumberPadClick(i)); numberPad.appendChild(button); }
+            }
+            function handleNumberPadClick(number) {
+                if (!lastSelectedCell || lastSelectedCell.classList.contains('pre-filled')) return;
+                const row = lastSelectedCell.dataset.row, col = lastSelectedCell.dataset.col, input = lastSelectedCell.querySelector('input');
+                if (isNoteMode) { toggleNote(row, col, number); } 
+                else { input.value = number; userNotes[row][col] = []; renderNotesForCell(lastSelectedCell); lastSelectedCell.classList.remove('incorrect'); updateNumberPad(); highlightSameNumbers(number); }
+            }
+            function handleEraseClick() {
+                if (!lastSelectedCell || lastSelectedCell.classList.contains('pre-filled')) return;
+                const row = lastSelectedCell.dataset.row, col = lastSelectedCell.dataset.col, input = lastSelectedCell.querySelector('input');
+                input.value = ''; userNotes[row][col] = []; renderNotesForCell(lastSelectedCell);
+                lastSelectedCell.classList.remove('incorrect'); updateNumberPad(); selectCell(lastSelectedCell);
+            }
+            function toggleNote(row, col, number) {
+                const notes = userNotes[row][col]; const noteIndex = notes.indexOf(number);
+                if (noteIndex > -1) { notes.splice(noteIndex, 1); } else { notes.push(number); notes.sort((a,b) => a-b); }
+                lastSelectedCell.querySelector('input').value = ''; renderNotesForCell(lastSelectedCell);
+            }
+            function renderNotesForCell(cell) {
+                const notesGrid = cell.querySelector('.notes-grid'); if (!notesGrid) return; notesGrid.innerHTML = '';
+                const row = cell.dataset.row, col = cell.dataset.col, notes = userNotes[row][col]; if (notes.length === 0) return;
+                const noteElements = Array(9).fill(0);
+                notes.forEach(noteNum => { noteElements[noteNum - 1] = `<div class="note-digit">${noteNum}</div>`; });
+                notesGrid.innerHTML = noteElements.map(n => n || '<div></div>').join('');
+            }
+            function updateNumberPad() {
+                const counts = {}; for(let i = 1; i<=9; i++) counts[i] = 0;
+                gridElement.querySelectorAll('input').forEach(input => { if (input.value) counts[input.value]++; });
+                for(let i = 1; i<=9; i++) { const button = numberPad.querySelector(`[data-number="${i}"]`); if (counts[i] === 9) button.classList.add('completed'); else button.classList.remove('completed'); }
+            }
+            function selectCell(cellElement) {
+                deselectAllCells(); lastSelectedCell = cellElement;
+                const selectedRow = cellElement.dataset.row, selectedCol = cellElement.dataset.col, selectedValue = cellElement.querySelector('input').value;
+                gridElement.querySelectorAll('.sudoku-cell').forEach(cell => { if (cell.dataset.row === selectedRow || cell.dataset.col === selectedCol) cell.classList.add('highlight'); });
+                if (selectedValue) { highlightSameNumbers(selectedValue); }
+                cellElement.classList.add('selected');
+            }
+            function highlightSameNumbers(number) { gridElement.querySelectorAll('.sudoku-cell').forEach(cell => { if (cell.querySelector('input').value === String(number)) cell.classList.add('highlight-strong'); }); }
+            function deselectAllCells() { gridElement.querySelectorAll('.sudoku-cell').forEach(c => c.classList.remove('selected', 'highlight', 'highlight-strong')); }
+            function validateSolution() {
+                let isCorrect = true, isComplete = true;
+                gridElement.querySelectorAll('input').forEach(input => {
+                    const cell = input.parentElement; if (cell.classList.contains('pre-filled')) return;
+                    const row = parseInt(cell.dataset.row), col = parseInt(cell.dataset.col); cell.classList.remove('incorrect');
+                    if (input.value === '') { isComplete = false; return; }
+                    if (parseInt(input.value) !== solution[row][col]) { cell.classList.add('incorrect'); isCorrect = false; }
+                });
+                if (!isComplete) showToast('The board is not completely filled yet!', 'orange');
+                else if (isCorrect) showToast('Congratulations! You solved it!', 'green');
+                else showToast('Some numbers are incorrect. Keep trying!', 'red');
+            }
+            async function startNewGameWithAd() {
+                await showInterstitialAd();
+                const generator = new SudokuGenerator();
+                const { puzzle, solution: sol } = generator.generate(difficulty);
+                currentBoard = puzzle; solution = sol;
+                userNotes = Array(9).fill(0).map(() => Array(9).fill(0).map(() => []));
+                deselectAllCells(); lastSelectedCell = null; renderBoard(currentBoard);
+            }
+            function setDifficulty(level) {
+                difficulty = level;
+                difficultyButtons.forEach(btn => { btn.classList.remove('active'); if (btn.dataset.level === level) btn.classList.add('active'); });
+                startNewGameWithAd();
+            }
+            function showToast(message, type = 'green') {
+                messageText.textContent = message;
+                messageBox.className = 'message-box fixed top-20 left-1/2 -translate-x-1/2 text-white py-3 px-6 rounded-lg shadow-xl opacity-0 transform -translate-y-10 pointer-events-none';
+                if (type === 'red') messageBox.classList.add('bg-red-500'); else if (type === 'orange') messageBox.classList.add('bg-orange-500'); else messageBox.classList.add('bg-green-500');
+                messageBox.classList.remove('opacity-0', '-translate-y-10'); messageBox.classList.add('opacity-100', 'translate-y-0');
+                setTimeout(() => { messageBox.classList.remove('opacity-100', 'translate-y-0'); messageBox.classList.add('opacity-0', '-translate-y-10'); }, 3000);
+            }
+
+            // --- Event Listeners ---
+            themeButtons.forEach(btn => btn.addEventListener('click', () => applyTheme(btn.dataset.theme)));
+            difficultyButtons.forEach(b => b.addEventListener('click', () => setDifficulty(b.dataset.level)));
+            noteModeButton.addEventListener('click', () => { isNoteMode = !isNoteMode; noteModeButton.classList.toggle('active'); });
+            eraseButton.addEventListener('click', handleEraseClick);
+            validateButton.addEventListener('click', validateSolution);
+            newGameButton.addEventListener('click', startNewGameWithAd);
+            document.addEventListener('click', (e) => { const mainContainer = document.querySelector('.w-full.max-w-lg.mx-auto'); if (!mainContainer.contains(e.target)) { deselectAllCells(); lastSelectedCell = null; } });
+
+            // --- Initial Game Start ---
+            renderNumberPad();
+            const generator = new SudokuGenerator();
+            const { puzzle, solution: sol } = generator.generate(difficulty);
+            currentBoard = puzzle; solution = sol;
+            userNotes = Array(9).fill(0).map(() => Array(9).fill(0).map(() => []));
+            renderBoard(currentBoard);
+            applyTheme('default');
+        });
+    </script>
+</body>
+</html>
